@@ -97,7 +97,7 @@ function Editor({ onClose, onAdd }) {
     };
     img.onerror = () => reject(new Error("Could not load the photo for cropping."));
     img.src = photoPreview;
-  };
+  });
 
   const handleSubmit = async () => {
     setError(null);

@@ -152,8 +152,8 @@ function DesktopRecommendation() {
         <div className="desktop-rec-kicker">For the full JamBook</div>
         <div id="desktop-rec-title" className="desktop-rec-title">A laptop or PC is recommended.</div>
         <p>
-          The phone version lets you browse and add memories, but the full two-page book,
-          page turns, and keepsake details are most beautiful on a larger screen.
+          Desktop is recommended, but not required. The phone version lets you browse and add memories,
+          while the full two-page book, page turns, and keepsake details are most beautiful on a larger screen.
         </p>
         <button className="desktop-rec-action" onClick={dismiss}>
           continue on phone
