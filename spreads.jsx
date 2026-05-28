@@ -227,7 +227,7 @@ const WelcomePage = () => (
       fontSize: 20, color: "var(--ink-soft)", textAlign: "right", lineHeight: 1.4,
     }}>
       with so much love,<br/>
-      <span style={{ fontSize: 26, color: "var(--ink)" }}>your people</span>
+      <span style={{ fontSize: 26, color: "var(--ink)" }}>your neighbours</span>
     </div>
     <Flower style={{ left: 60, bottom: 60, transform: "rotate(-20deg)" }} scale={0.85} />
     <Sprig style={{ left: 90, bottom: 40, transform: "rotate(40deg)" }} scale={0.5} />
