@@ -64,8 +64,9 @@ const DeleteMemoryButton = ({ memory, onDeleteMemory }) => {
 
 const PhotoEl = ({ memory, onDeleteMemory }) => {
   const { content, contributor_name } = memory;
-  const { x, y, rotation, width = 200, url, caption } = content;
-  const photoH = Math.round(width * 0.82);
+  const { x, y, rotation, url, caption, aspect = 1.22, displayWidth } = content;
+  const width = displayWidth || content.width || 200;
+  const photoH = Math.round(width / aspect);
   return (
     <>
       <div className="polaroid" style={{

@@ -78,7 +78,7 @@ const db = (() => {
       .insert([{
         page_num: targetPage,
         type,
-        content: { ...content, ...pos },
+        content: { ...pos, ...content },
         contributor_name: contributor_name || 'anonymous',
       }])
       .select()

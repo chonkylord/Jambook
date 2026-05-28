@@ -12,7 +12,7 @@ function Editor({ onClose, onAdd }) {
   const [photoFile,    setPhotoFile]    = React.useState(null);
   const [photoPreview, setPhotoPreview] = React.useState(null);
   const [photoSize,    setPhotoSize]    = React.useState(null);
-  const [photoCrop,    setPhotoCrop]    = React.useState({ zoom: 1, x: 50, y: 50 });
+  const [photoCrop,    setPhotoCrop]    = React.useState({ mode: "fit", zoom: 1, x: 50, y: 50 });
   const [caption,      setCaption]      = React.useState("");
 
   // Note
@@ -23,7 +23,15 @@ function Editor({ onClose, onAdd }) {
   const [videoCaption, setVideoCaption] = React.useState("");
 
   const setCropValue = (key, value) => {
-    setPhotoCrop(prev => ({ ...prev, [key]: Number(value) }));
+    setPhotoCrop(prev => ({
+      ...prev,
+      mode: "crop",
+      [key]: Number(value),
+    }));
+  };
+
+  const setCropMode = (mode) => {
+    setPhotoCrop(prev => ({ ...prev, mode }));
   };
 
   const selectPhotoFile = (file) => {
@@ -35,7 +43,7 @@ function Editor({ onClose, onAdd }) {
     setPhotoFile(file);
     setPhotoPreview(previewUrl);
     setPhotoSize(null);
-    setPhotoCrop({ zoom: 1, x: 50, y: 50 });
+    setPhotoCrop({ mode: "fit", zoom: 1, x: 50, y: 50 });
 
     const img = new Image();
     img.onload = () => setPhotoSize({ width: img.naturalWidth, height: img.naturalHeight });
@@ -54,37 +62,61 @@ function Editor({ onClose, onAdd }) {
     selectPhotoFile(file);
   };
 
-  const createCroppedPhoto = () => new Promise((resolve, reject) => {
+  const getPhotoLayout = () => {
+    if (!photoSize) return { aspect: 1.22, width: 200 };
+
+    const naturalAspect = photoSize.width / photoSize.height;
+    const minAspect = 0.62;
+    const maxAspect = 1.7;
+    const aspect = photoCrop.mode === "crop"
+      ? 1.22
+      : Math.max(minAspect, Math.min(maxAspect, naturalAspect));
+    const width = aspect < 0.8 ? 170 : aspect > 1.45 ? 225 : 200;
+
+    return { aspect, width };
+  };
+
+  const createPreparedPhoto = () => new Promise((resolve, reject) => {
     if (!photoFile || !photoSize) {
-      resolve(photoFile);
+      resolve({ file: photoFile, layout: getPhotoLayout() });
       return;
     }
 
-    const targetAspect = 1 / 0.82;
+    const layout = getPhotoLayout();
+    const targetAspect = layout.aspect;
     const sourceAspect = photoSize.width / photoSize.height;
-    const baseWidth = sourceAspect > targetAspect
-      ? photoSize.height * targetAspect
-      : photoSize.width;
-    const baseHeight = baseWidth / targetAspect;
-    const cropWidth = baseWidth / photoCrop.zoom;
-    const cropHeight = baseHeight / photoCrop.zoom;
-    const centerX = (photoCrop.x / 100) * photoSize.width;
-    const centerY = (photoCrop.y / 100) * photoSize.height;
-    const sourceX = Math.max(0, Math.min(photoSize.width - cropWidth, centerX - cropWidth / 2));
-    const sourceY = Math.max(0, Math.min(photoSize.height - cropHeight, centerY - cropHeight / 2));
+    const outputWidth = 1200;
+    const outputHeight = Math.round(outputWidth / targetAspect);
 
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = 1200;
-      canvas.height = Math.round(canvas.width / targetAspect);
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
       const ctx = canvas.getContext("2d");
 
-      ctx.drawImage(
-        img,
-        sourceX, sourceY, cropWidth, cropHeight,
-        0, 0, canvas.width, canvas.height
-      );
+      if (photoCrop.mode === "crop") {
+        const baseWidth = sourceAspect > targetAspect
+          ? photoSize.height * targetAspect
+          : photoSize.width;
+        const baseHeight = baseWidth / targetAspect;
+        const cropWidth = baseWidth / photoCrop.zoom;
+        const cropHeight = baseHeight / photoCrop.zoom;
+        const centerX = (photoCrop.x / 100) * photoSize.width;
+        const centerY = (photoCrop.y / 100) * photoSize.height;
+        const sourceX = Math.max(0, Math.min(photoSize.width - cropWidth, centerX - cropWidth / 2));
+        const sourceY = Math.max(0, Math.min(photoSize.height - cropHeight, centerY - cropHeight / 2));
+
+        ctx.drawImage(
+          img,
+          sourceX, sourceY, cropWidth, cropHeight,
+          0, 0, canvas.width, canvas.height
+        );
+      } else {
+        ctx.fillStyle = "#fbf6e9";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
 
       canvas.toBlob((blob) => {
         if (!blob) {
@@ -92,7 +124,10 @@ function Editor({ onClose, onAdd }) {
           return;
         }
 
-        resolve(new File([blob], "jambook-photo.jpg", { type: "image/jpeg" }));
+        resolve({
+          file: new File([blob], "jambook-photo.jpg", { type: "image/jpeg" }),
+          layout,
+        });
       }, "image/jpeg", 0.9);
     };
     img.onerror = () => reject(new Error("Could not load the photo for cropping."));
@@ -110,9 +145,9 @@ function Editor({ onClose, onAdd }) {
 
       if (type === "photo") {
         if (!photoFile) { setError("Choose a photo first."); setSubmitting(false); return; }
-        const croppedPhoto = await createCroppedPhoto();
-        const url = await db.uploadMedia(croppedPhoto, "photos");
-        content = { url, caption };
+        const preparedPhoto = await createPreparedPhoto();
+        const url = await db.uploadMedia(preparedPhoto.file, "photos");
+        content = { url, caption, aspect: preparedPhoto.layout.aspect, displayWidth: preparedPhoto.layout.width };
       } else if (type === "note") {
         if (!noteText.trim()) { setError("Write something first."); setSubmitting(false); return; }
         content = { text: noteText };
@@ -187,12 +222,13 @@ function Editor({ onClose, onAdd }) {
               onDrop={handlePhotoDrop}>
               {photoPreview
                 ? (
-                  <div className="photo-crop-preview">
+                  <div className={`photo-crop-preview ${photoCrop.mode === "fit" ? "fit-mode" : "crop-mode"}`}>
                     <img
                       src={photoPreview}
                       alt="Crop preview"
                       style={{
-                        transform: `scale(${photoCrop.zoom})`,
+                        objectFit: photoCrop.mode === "fit" ? "contain" : "cover",
+                        transform: photoCrop.mode === "fit" ? "none" : `scale(${photoCrop.zoom})`,
                         transformOrigin: `${photoCrop.x}% ${photoCrop.y}%`,
                       }}
                     />
@@ -204,6 +240,22 @@ function Editor({ onClose, onAdd }) {
             </label>
             {photoPreview && (
               <div className="crop-controls">
+                <div className="crop-mode-row">
+                  <button
+                    type="button"
+                    className={photoCrop.mode === "fit" ? "active" : ""}
+                    onClick={() => setCropMode("fit")}
+                  >
+                    full image
+                  </button>
+                  <button
+                    type="button"
+                    className={photoCrop.mode === "crop" ? "active" : ""}
+                    onClick={() => setCropMode("crop")}
+                  >
+                    crop
+                  </button>
+                </div>
                 <label>
                   <span>zoom</span>
                   <input
@@ -213,6 +265,7 @@ function Editor({ onClose, onAdd }) {
                     step="0.05"
                     value={photoCrop.zoom}
                     onChange={e => setCropValue("zoom", e.target.value)}
+                    disabled={photoCrop.mode === "fit"}
                   />
                 </label>
                 <label>
@@ -224,6 +277,7 @@ function Editor({ onClose, onAdd }) {
                     step="1"
                     value={photoCrop.x}
                     onChange={e => setCropValue("x", e.target.value)}
+                    disabled={photoCrop.mode === "fit"}
                   />
                 </label>
                 <label>
@@ -235,6 +289,7 @@ function Editor({ onClose, onAdd }) {
                     step="1"
                     value={photoCrop.y}
                     onChange={e => setCropValue("y", e.target.value)}
+                    disabled={photoCrop.mode === "fit"}
                   />
                 </label>
               </div>

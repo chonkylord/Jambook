@@ -1273,9 +1273,19 @@ div:hover > .memory-delete,
 .photo-crop-preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
   display: block;
   transition: transform .12s ease, transform-origin .12s ease;
+}
+
+.photo-crop-preview.fit-mode {
+  background:
+    linear-gradient(45deg, rgba(255,255,255,0.12) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,0.12) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.12) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.12) 75%),
+    #3a2a1f;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
 }
 
 .photo-crop-frame {
@@ -1293,6 +1303,32 @@ div:hover > .memory-delete,
   padding: 12px 12px 10px;
   border: 1px solid rgba(120, 90, 50, 0.2);
   background: rgba(255, 255, 255, 0.28);
+}
+
+.crop-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.crop-mode-row button {
+  border: 1px solid rgba(120, 90, 50, 0.28);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.42);
+  color: var(--ink-soft);
+  padding: 8px 10px;
+  font-family: 'Special Elite', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.crop-mode-row button.active {
+  background: var(--leather);
+  border-color: var(--gold);
+  color: var(--gold-bright);
 }
 
 .crop-controls label {
@@ -1313,6 +1349,10 @@ div:hover > .memory-delete,
 .crop-controls input[type="range"] {
   width: 100%;
   accent-color: var(--leather);
+}
+
+.crop-controls input[type="range"]:disabled {
+  opacity: 0.35;
 }
 
 .editor-redo {
