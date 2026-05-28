@@ -61,7 +61,7 @@ async function main() {
       CREATE TABLE IF NOT EXISTS memories (
         id               UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
         page_num         INTEGER     NOT NULL,
-        type             TEXT        NOT NULL CHECK (type IN ('photo','note','voice','video')),
+        type             TEXT        NOT NULL CHECK (type IN ('photo','note','video')),
         content          JSONB       NOT NULL DEFAULT '{}',
         contributor_name TEXT        NOT NULL DEFAULT 'anonymous',
         created_at       TIMESTAMPTZ DEFAULT NOW()
@@ -78,7 +78,19 @@ async function main() {
     ['Create read policy',   `CREATE POLICY "public read"   ON memories FOR SELECT USING (true)`],
     ['Create insert policy', `CREATE POLICY "public insert" ON memories FOR INSERT WITH CHECK (true)`],
     ['Create delete policy', `CREATE POLICY "public delete" ON memories FOR DELETE USING (true)`],
-    ['Enable real-time',     `ALTER PUBLICATION supabase_realtime ADD TABLE memories`],
+    ['Enable real-time',     `
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_publication_tables
+          WHERE pubname = 'supabase_realtime'
+            AND schemaname = 'public'
+            AND tablename = 'memories'
+        ) THEN
+          ALTER PUBLICATION supabase_realtime ADD TABLE memories;
+        END IF;
+      END $$
+    `],
     ['Create storage bucket', `
       INSERT INTO storage.buckets (id, name, public)
       VALUES ('jambook-media', 'jambook-media', true)

@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS memories (
   id               UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   page_num         INTEGER     NOT NULL,
-  type             TEXT        NOT NULL CHECK (type IN ('photo', 'note', 'voice', 'video')),
+  type             TEXT        NOT NULL CHECK (type IN ('photo', 'note', 'video')),
   content          JSONB       NOT NULL DEFAULT '{}',
   contributor_name TEXT        NOT NULL DEFAULT 'anonymous',
   created_at       TIMESTAMPTZ DEFAULT NOW()
@@ -23,7 +23,18 @@ CREATE POLICY "public insert" ON memories FOR INSERT WITH CHECK (true);
 CREATE POLICY "public delete" ON memories FOR DELETE USING (true);
 
 -- 3. Enable real-time for the memories table
-ALTER PUBLICATION supabase_realtime ADD TABLE memories;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'memories'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE memories;
+  END IF;
+END $$;
 
 -- 4. Storage delete policy for media cleanup
 DROP POLICY IF EXISTS "public delete media" ON storage.objects;

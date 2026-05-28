@@ -488,7 +488,6 @@ body::after {
 
 .polaroid:hover .memory-delete,
 .note-card:hover .memory-delete,
-.voicememo:hover .memory-delete,
 div:hover > .memory-delete,
 .memory-delete:focus {
   opacity: 1;
@@ -725,34 +724,6 @@ div:hover > .memory-delete,
   letter-spacing: 0.2em;
   color: var(--ink-soft);
   margin-bottom: 10px;
-}
-
-/* Cassette/voice-memo card */
-.voicememo {
-  position: absolute;
-  background: #d4a957;
-  background-image:
-    linear-gradient(180deg, rgba(255,255,255,0.15), transparent 30%, rgba(0,0,0,0.15));
-  padding: 10px 12px;
-  border-radius: 3px;
-  font-family: 'Special Elite', monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: #3a2a1f;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1), 0 8px 14px rgba(0,0,0,0.22);
-}
-.voicememo .wave {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 22px;
-  margin-top: 4px;
-}
-.voicememo .wave span {
-  display: block;
-  width: 3px;
-  background: #3a2a1f;
-  opacity: 0.7;
 }
 
 /* Birthday cake doodle (just emoji-ish) */
@@ -1344,35 +1315,6 @@ div:hover > .memory-delete,
   accent-color: var(--leather);
 }
 
-.editor-record-btn {
-  width: 100%;
-  padding: 22px;
-  background: rgba(255, 255, 255, 0.45);
-  border: 1.5px solid rgba(120, 90, 50, 0.3);
-  border-radius: 4px;
-  font-family: 'Caveat', cursive;
-  font-size: 26px;
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.editor-record-btn:hover { background: rgba(255, 255, 255, 0.65); }
-.editor-record-btn.recording {
-  background: rgba(168, 58, 58, 0.08);
-  border-color: #a83a3a;
-  color: #a83a3a;
-  animation: pulse-rec 1.5s ease-in-out infinite;
-}
-@keyframes pulse-rec {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.55; }
-}
-
-.editor-voice-done {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 .editor-redo {
   background: none;
   border: none;

@@ -97,16 +97,6 @@ const db = (() => {
     return client.storage.from('jambook-media').getPublicUrl(path).data.publicUrl;
   }
 
-  async function uploadBlob(blob, folder, ext) {
-    if (!configured) throw new Error('Supabase not configured');
-    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await client.storage
-      .from('jambook-media')
-      .upload(path, blob, { contentType: blob.type });
-    if (error) throw error;
-    return client.storage.from('jambook-media').getPublicUrl(path).data.publicUrl;
-  }
-
   function storagePathFromPublicUrl(url) {
     if (!url || typeof url !== 'string') return null;
     const marker = '/storage/v1/object/public/jambook-media/';
@@ -146,5 +136,5 @@ const db = (() => {
       .subscribe();
   }
 
-  return { configured, getMemories, addMemory, deleteMemory, uploadMedia, uploadBlob, subscribeToMemories };
+  return { configured, getMemories, addMemory, deleteMemory, uploadMedia, subscribeToMemories };
 })();

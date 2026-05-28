@@ -18,13 +18,6 @@ function Editor({ onClose, onAdd }) {
   // Note
   const [noteText, setNoteText] = React.useState("");
 
-  // Voice
-  const [recording, setRecording] = React.useState(false);
-  const [voiceBlob, setVoiceBlob] = React.useState(null);
-  const [voiceUrl,  setVoiceUrl]  = React.useState(null);
-  const mediaRecRef = React.useRef(null);
-  const chunksRef   = React.useRef([]);
-
   // Video
   const [videoFile,    setVideoFile]    = React.useState(null);
   const [videoCaption, setVideoCaption] = React.useState("");
@@ -106,32 +99,6 @@ function Editor({ onClose, onAdd }) {
     img.src = photoPreview;
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecRef.current = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mediaRecRef.current.ondataavailable = e => chunksRef.current.push(e.data);
-      mediaRecRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setVoiceBlob(blob);
-        setVoiceUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach(t => t.stop());
-      };
-      mediaRecRef.current.start();
-      setRecording(true);
-    } catch {
-      setError("Microphone access denied. Check your browser permissions.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecRef.current) {
-      mediaRecRef.current.stop();
-      setRecording(false);
-    }
-  };
-
   const handleSubmit = async () => {
     setError(null);
     if (!name.trim()) { setError("Tell us your name first."); return; }
@@ -149,10 +116,6 @@ function Editor({ onClose, onAdd }) {
       } else if (type === "note") {
         if (!noteText.trim()) { setError("Write something first."); setSubmitting(false); return; }
         content = { text: noteText };
-      } else if (type === "voice") {
-        if (!voiceBlob) { setError("Record something first."); setSubmitting(false); return; }
-        const url = await db.uploadBlob(voiceBlob, "voices", "webm");
-        content = { url };
       } else if (type === "video") {
         if (!videoFile) { setError("Choose a video first."); setSubmitting(false); return; }
         const url = await db.uploadMedia(videoFile, "videos");
@@ -203,7 +166,6 @@ function Editor({ onClose, onAdd }) {
             {[
               { id: "photo", icon: "📷", label: "Photo" },
               { id: "note",  icon: "📝", label: "Note" },
-              { id: "voice", icon: "🎙",  label: "Voice" },
               { id: "video", icon: "🎬", label: "Video" },
             ].map(t => (
               <button key={t.id}
@@ -290,28 +252,6 @@ function Editor({ onClose, onAdd }) {
               placeholder="write your memory, birthday wish, or message..."
               value={noteText} onChange={e => setNoteText(e.target.value)}
               rows={5} />
-          </div>
-        )}
-
-        {/* Voice */}
-        {type === "voice" && (
-          <div className="editor-field">
-            <label className="editor-label">Voice note</label>
-            {!voiceUrl ? (
-              <button
-                className={`editor-record-btn${recording ? " recording" : ""}`}
-                onClick={recording ? stopRecording : startRecording}>
-                {recording ? "⏹ tap to stop" : "⏺ tap to record"}
-              </button>
-            ) : (
-              <div className="editor-voice-done">
-                <audio src={voiceUrl} controls style={{ width: "100%" }} />
-                <button className="editor-redo"
-                  onClick={() => { setVoiceBlob(null); setVoiceUrl(null); }}>
-                  record again
-                </button>
-              </div>
-            )}
           </div>
         )}
 

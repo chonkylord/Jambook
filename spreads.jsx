@@ -108,40 +108,6 @@ const NoteEl = ({ memory, onDeleteMemory }) => {
   );
 };
 
-const VoiceEl = ({ memory, onDeleteMemory }) => {
-  const { content, contributor_name } = memory;
-  const { x, y, rotation, width = 200, url } = content;
-  const audioRef = React.useRef(null);
-  const [playing, setPlaying] = React.useState(false);
-
-  const toggle = (e) => {
-    e.stopPropagation();
-    if (!audioRef.current) return;
-    if (playing) { audioRef.current.pause(); setPlaying(false); }
-    else { audioRef.current.play().then(() => setPlaying(true)).catch(() => {}); }
-  };
-
-  return (
-    <div className="voicememo" style={{
-      position: "absolute", left: x, top: y, width,
-      transform: `rotate(${rotation}deg)`,
-      zIndex: 3, cursor: "pointer",
-    }} onClick={toggle}>
-      <audio ref={audioRef} src={url} onEnded={() => setPlaying(false)} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>{playing ? "⏸ PLAYING" : "▶ VOICE MEMO"}</span>
-      </div>
-      <Wave />
-      {contributor_name && contributor_name !== "anonymous" && (
-        <div style={{ marginTop: 6, fontFamily: "'Caveat', cursive", fontSize: 14 }}>
-          from {contributor_name}
-        </div>
-      )}
-      <DeleteMemoryButton memory={memory} onDeleteMemory={onDeleteMemory} />
-    </div>
-  );
-};
-
 const VideoEl = ({ memory, onDeleteMemory }) => {
   const { content, contributor_name } = memory;
   const { x, y, rotation, width = 220, url, caption } = content;
@@ -168,7 +134,6 @@ function MemoryEl({ memory, onDeleteMemory }) {
   switch (memory.type) {
     case "photo": return <PhotoEl memory={memory} onDeleteMemory={onDeleteMemory} />;
     case "note":  return <NoteEl  memory={memory} onDeleteMemory={onDeleteMemory} />;
-    case "voice": return <VoiceEl memory={memory} onDeleteMemory={onDeleteMemory} />;
     case "video": return <VideoEl memory={memory} onDeleteMemory={onDeleteMemory} />;
     default:      return null;
   }
@@ -242,7 +207,7 @@ const WelcomePage = () => (
       fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic",
       fontSize: 19, lineHeight: 1.65, color: "var(--ink)", maxWidth: 340,
     }}>
-      <p>This is a living memory book — anyone with this link can add a photo, a voice note, a handwritten message, or a short video.</p>
+      <p>This is a living memory book — anyone with this link can add a photo, a handwritten message, or a short video.</p>
       <p style={{ marginTop: 12 }}>The book grows with every memory. Use the button at the bottom of your screen to add yours.</p>
       <p style={{ marginTop: 12 }}>Turn the page to see what's already here.</p>
     </div>
