@@ -465,6 +465,40 @@ body::after {
   color: var(--ink);
 }
 
+.memory-delete {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 80;
+  border: 1px solid rgba(212, 169, 87, 0.55);
+  border-radius: 999px;
+  background: rgba(107, 42, 31, 0.94);
+  color: var(--gold-bright);
+  padding: 5px 9px 4px;
+  font-family: 'Special Elite', monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.28);
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity .18s ease, transform .18s ease, background .18s ease;
+}
+
+.polaroid:hover .memory-delete,
+.note-card:hover .memory-delete,
+.voicememo:hover .memory-delete,
+div:hover > .memory-delete,
+.memory-delete:focus {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.memory-delete:hover {
+  background: var(--leather-light);
+}
+
 /* Taped photo (no polaroid border, just a photo with tape) */
 .taped-photo {
   position: absolute;
@@ -967,6 +1001,11 @@ body::after {
     backdrop-filter: blur(4px);
   }
 
+  .memory-delete {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   .desktop-rec-overlay {
     position: fixed;
     inset: 0;
@@ -1249,6 +1288,60 @@ body::after {
 .editor-upload-area:hover {
   border-color: rgba(120, 90, 50, 0.6);
   background: rgba(255, 255, 255, 0.3);
+}
+
+.photo-crop-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #21140d;
+}
+
+.photo-crop-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .12s ease, transform-origin .12s ease;
+}
+
+.photo-crop-frame {
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.76);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+}
+
+.crop-controls {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 12px 12px 10px;
+  border: 1px solid rgba(120, 90, 50, 0.2);
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.crop-controls label {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.crop-controls span {
+  font-family: 'Special Elite', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.crop-controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--leather);
 }
 
 .editor-record-btn {

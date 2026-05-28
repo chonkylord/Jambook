@@ -41,7 +41,28 @@ const Wave = ({ heights = [8,14,6,18,12,20,10,16,6,14,9,20,12,8,14,6,16] }) => (
 );
 
 /* ── Memory element renderers ───────────────────────────────── */
-const PhotoEl = ({ memory }) => {
+const DeleteMemoryButton = ({ memory, onDeleteMemory }) => {
+  if (!onDeleteMemory) return null;
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    onDeleteMemory(memory);
+  };
+
+  return (
+    <button
+      className="memory-delete"
+      onClick={handleClick}
+      onMouseDown={e => e.stopPropagation()}
+      aria-label="Delete this memory"
+      title="Delete this memory"
+    >
+      delete
+    </button>
+  );
+};
+
+const PhotoEl = ({ memory, onDeleteMemory }) => {
   const { content, contributor_name } = memory;
   const { x, y, rotation, width = 200, url, caption } = content;
   const photoH = Math.round(width * 0.82);
@@ -57,6 +78,7 @@ const PhotoEl = ({ memory }) => {
         <div className="caption">
           {caption || (contributor_name && contributor_name !== "anonymous" ? `from ${contributor_name}` : "")}
         </div>
+        <DeleteMemoryButton memory={memory} onDeleteMemory={onDeleteMemory} />
       </div>
       <div className="tape washi" style={{
         position: "absolute",
@@ -68,7 +90,7 @@ const PhotoEl = ({ memory }) => {
   );
 };
 
-const NoteEl = ({ memory }) => {
+const NoteEl = ({ memory, onDeleteMemory }) => {
   const { content, contributor_name } = memory;
   const { x, y, rotation, width = 200, text } = content;
   return (
@@ -81,11 +103,12 @@ const NoteEl = ({ memory }) => {
       {contributor_name && contributor_name !== "anonymous" && (
         <span className="signature">— {contributor_name}</span>
       )}
+      <DeleteMemoryButton memory={memory} onDeleteMemory={onDeleteMemory} />
     </div>
   );
 };
 
-const VoiceEl = ({ memory }) => {
+const VoiceEl = ({ memory, onDeleteMemory }) => {
   const { content, contributor_name } = memory;
   const { x, y, rotation, width = 200, url } = content;
   const audioRef = React.useRef(null);
@@ -114,11 +137,12 @@ const VoiceEl = ({ memory }) => {
           from {contributor_name}
         </div>
       )}
+      <DeleteMemoryButton memory={memory} onDeleteMemory={onDeleteMemory} />
     </div>
   );
 };
 
-const VideoEl = ({ memory }) => {
+const VideoEl = ({ memory, onDeleteMemory }) => {
   const { content, contributor_name } = memory;
   const { x, y, rotation, width = 220, url, caption } = content;
   return (
@@ -135,16 +159,17 @@ const VideoEl = ({ memory }) => {
           {caption || `from ${contributor_name}`}
         </div>
       )}
+      <DeleteMemoryButton memory={memory} onDeleteMemory={onDeleteMemory} />
     </div>
   );
 };
 
-function MemoryEl({ memory }) {
+function MemoryEl({ memory, onDeleteMemory }) {
   switch (memory.type) {
-    case "photo": return <PhotoEl memory={memory} />;
-    case "note":  return <NoteEl  memory={memory} />;
-    case "voice": return <VoiceEl memory={memory} />;
-    case "video": return <VideoEl memory={memory} />;
+    case "photo": return <PhotoEl memory={memory} onDeleteMemory={onDeleteMemory} />;
+    case "note":  return <NoteEl  memory={memory} onDeleteMemory={onDeleteMemory} />;
+    case "voice": return <VoiceEl memory={memory} onDeleteMemory={onDeleteMemory} />;
+    case "video": return <VideoEl memory={memory} onDeleteMemory={onDeleteMemory} />;
     default:      return null;
   }
 }
@@ -270,9 +295,11 @@ const BackPaper = () => (
   </div>
 );
 
-const ContentPage = ({ side, memories }) => (
+const ContentPage = ({ side, memories, onDeleteMemory }) => (
   <div className={`page ${side}`}>
-    {(memories || []).map(m => <MemoryEl key={m.id} memory={m} />)}
+    {(memories || []).map(m => (
+      <MemoryEl key={m.id} memory={m} onDeleteMemory={onDeleteMemory} />
+    ))}
   </div>
 );
 
@@ -287,7 +314,8 @@ const ContentPage = ({ side, memories }) => (
      leaves[K].back  = page_num 2K-1  (left pages, odd)
      leaves[K].front = page_num 2*(K-1) (right pages, even, K >= 2)
 ─────────────────────────────────────────────────────────────── */
-function buildLeaves(memories) {
+function buildLeaves(memories, options = {}) {
+  const { onDeleteMemory } = options;
   const byPage = {};
   for (const m of memories) {
     if (!byPage[m.page_num]) byPage[m.page_num] = [];
@@ -306,7 +334,7 @@ function buildLeaves(memories) {
     {
       front: <WelcomePage />,
       back: byPage[1]
-        ? <ContentPage side="left" memories={byPage[1]} />
+        ? <ContentPage side="left" memories={byPage[1]} onDeleteMemory={onDeleteMemory} />
         : <EmptyPage side="left" />,
     },
   ];
@@ -317,8 +345,8 @@ function buildLeaves(memories) {
     const r = byPage[rightNum] || [];
     const l = byPage[leftNum]  || [];
     leaves.push({
-      front: r.length ? <ContentPage side="right" memories={r} /> : <EmptyPage side="right" />,
-      back:  l.length ? <ContentPage side="left"  memories={l} /> : <EmptyPage side="left" />,
+      front: r.length ? <ContentPage side="right" memories={r} onDeleteMemory={onDeleteMemory} /> : <EmptyPage side="right" />,
+      back:  l.length ? <ContentPage side="left"  memories={l} onDeleteMemory={onDeleteMemory} /> : <EmptyPage side="left" />,
     });
   }
 

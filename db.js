@@ -107,16 +107,44 @@ const db = (() => {
     return client.storage.from('jambook-media').getPublicUrl(path).data.publicUrl;
   }
 
-  function subscribeToMemories(callback) {
+  function storagePathFromPublicUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    const marker = '/storage/v1/object/public/jambook-media/';
+    const index = url.indexOf(marker);
+    if (index === -1) return null;
+    return decodeURIComponent(url.slice(index + marker.length).split('?')[0]);
+  }
+
+  async function deleteMemory(memory) {
+    if (!configured) throw new Error('Supabase not configured');
+
+    const { error } = await client
+      .from('memories')
+      .delete()
+      .eq('id', memory.id);
+
+    if (error) throw error;
+
+    const mediaPath = storagePathFromPublicUrl(memory.content && memory.content.url);
+    if (mediaPath) {
+      await client.storage.from('jambook-media').remove([mediaPath]).catch(() => {});
+    }
+  }
+
+  function subscribeToMemories(onInsert, onDelete) {
     if (!configured) return { unsubscribe: () => {} };
     return client
       .channel('memory-inserts')
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'memories' },
-        (payload) => callback(payload.new)
+        (payload) => onInsert(payload.new)
+      )
+      .on('postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'memories' },
+        (payload) => onDelete && onDelete(payload.old)
       )
       .subscribe();
   }
 
-  return { configured, getMemories, addMemory, uploadMedia, uploadBlob, subscribeToMemories };
+  return { configured, getMemories, addMemory, deleteMemory, uploadMedia, uploadBlob, subscribeToMemories };
 })();

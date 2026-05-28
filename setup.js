@@ -72,10 +72,12 @@ async function main() {
       DO $$ BEGIN
         DROP POLICY IF EXISTS "public read"   ON memories;
         DROP POLICY IF EXISTS "public insert" ON memories;
+        DROP POLICY IF EXISTS "public delete" ON memories;
       END $$
     `],
     ['Create read policy',   `CREATE POLICY "public read"   ON memories FOR SELECT USING (true)`],
     ['Create insert policy', `CREATE POLICY "public insert" ON memories FOR INSERT WITH CHECK (true)`],
+    ['Create delete policy', `CREATE POLICY "public delete" ON memories FOR DELETE USING (true)`],
     ['Enable real-time',     `ALTER PUBLICATION supabase_realtime ADD TABLE memories`],
     ['Create storage bucket', `
       INSERT INTO storage.buckets (id, name, public)
@@ -94,6 +96,13 @@ async function main() {
         DROP POLICY IF EXISTS "public upload" ON storage.objects;
         CREATE POLICY "public upload" ON storage.objects
           FOR INSERT WITH CHECK (bucket_id = 'jambook-media');
+      END $$
+    `],
+    ['Storage delete policy', `
+      DO $$ BEGIN
+        DROP POLICY IF EXISTS "public delete media" ON storage.objects;
+        CREATE POLICY "public delete media" ON storage.objects
+          FOR DELETE USING (bucket_id = 'jambook-media');
       END $$
     `],
   ];

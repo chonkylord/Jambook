@@ -11,6 +11,8 @@ function Editor({ onClose, onAdd }) {
   // Photo
   const [photoFile,    setPhotoFile]    = React.useState(null);
   const [photoPreview, setPhotoPreview] = React.useState(null);
+  const [photoSize,    setPhotoSize]    = React.useState(null);
+  const [photoCrop,    setPhotoCrop]    = React.useState({ zoom: 1, x: 50, y: 50 });
   const [caption,      setCaption]      = React.useState("");
 
   // Note
@@ -27,19 +29,81 @@ function Editor({ onClose, onAdd }) {
   const [videoFile,    setVideoFile]    = React.useState(null);
   const [videoCaption, setVideoCaption] = React.useState("");
 
+  const setCropValue = (key, value) => {
+    setPhotoCrop(prev => ({ ...prev, [key]: Number(value) }));
+  };
+
+  const selectPhotoFile = (file) => {
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+
+    setPhotoFile(file);
+    setPhotoPreview(previewUrl);
+    setPhotoSize(null);
+    setPhotoCrop({ zoom: 1, x: 50, y: 50 });
+
+    const img = new Image();
+    img.onload = () => setPhotoSize({ width: img.naturalWidth, height: img.naturalHeight });
+    img.src = previewUrl;
+  };
+
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    selectPhotoFile(file);
   };
 
   const handlePhotoDrop = (e) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (!file || !file.type.startsWith("image/")) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
+    selectPhotoFile(file);
+  };
+
+  const createCroppedPhoto = () => new Promise((resolve, reject) => {
+    if (!photoFile || !photoSize) {
+      resolve(photoFile);
+      return;
+    }
+
+    const targetAspect = 1 / 0.82;
+    const sourceAspect = photoSize.width / photoSize.height;
+    const baseWidth = sourceAspect > targetAspect
+      ? photoSize.height * targetAspect
+      : photoSize.width;
+    const baseHeight = baseWidth / targetAspect;
+    const cropWidth = baseWidth / photoCrop.zoom;
+    const cropHeight = baseHeight / photoCrop.zoom;
+    const centerX = (photoCrop.x / 100) * photoSize.width;
+    const centerY = (photoCrop.y / 100) * photoSize.height;
+    const sourceX = Math.max(0, Math.min(photoSize.width - cropWidth, centerX - cropWidth / 2));
+    const sourceY = Math.max(0, Math.min(photoSize.height - cropHeight, centerY - cropHeight / 2));
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = Math.round(canvas.width / targetAspect);
+      const ctx = canvas.getContext("2d");
+
+      ctx.drawImage(
+        img,
+        sourceX, sourceY, cropWidth, cropHeight,
+        0, 0, canvas.width, canvas.height
+      );
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Could not crop the photo. Try another image."));
+          return;
+        }
+
+        resolve(new File([blob], "jambook-photo.jpg", { type: "image/jpeg" }));
+      }, "image/jpeg", 0.9);
+    };
+    img.onerror = () => reject(new Error("Could not load the photo for cropping."));
+    img.src = photoPreview;
   };
 
   const startRecording = async () => {
@@ -79,7 +143,8 @@ function Editor({ onClose, onAdd }) {
 
       if (type === "photo") {
         if (!photoFile) { setError("Choose a photo first."); setSubmitting(false); return; }
-        const url = await db.uploadMedia(photoFile, "photos");
+        const croppedPhoto = await createCroppedPhoto();
+        const url = await db.uploadMedia(croppedPhoto, "photos");
         content = { url, caption };
       } else if (type === "note") {
         if (!noteText.trim()) { setError("Write something first."); setSubmitting(false); return; }
@@ -105,6 +170,12 @@ function Editor({ onClose, onAdd }) {
   };
 
   const pickType = (t) => { setType(t); setError(null); };
+
+  React.useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
 
   return (
     <div className="editor-overlay" onClick={onClose}>
@@ -153,10 +224,59 @@ function Editor({ onClose, onAdd }) {
               onDragOver={e => e.preventDefault()}
               onDrop={handlePhotoDrop}>
               {photoPreview
-                ? <img src={photoPreview} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 3 }} alt="preview" />
+                ? (
+                  <div className="photo-crop-preview">
+                    <img
+                      src={photoPreview}
+                      alt="Crop preview"
+                      style={{
+                        transform: `scale(${photoCrop.zoom})`,
+                        transformOrigin: `${photoCrop.x}% ${photoCrop.y}%`,
+                      }}
+                    />
+                    <div className="photo-crop-frame" />
+                  </div>
+                )
                 : <span>tap to choose · or drag a photo here</span>}
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
             </label>
+            {photoPreview && (
+              <div className="crop-controls">
+                <label>
+                  <span>zoom</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.05"
+                    value={photoCrop.zoom}
+                    onChange={e => setCropValue("zoom", e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>left / right</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={photoCrop.x}
+                    onChange={e => setCropValue("x", e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>up / down</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={photoCrop.y}
+                    onChange={e => setCropValue("y", e.target.value)}
+                  />
+                </label>
+              </div>
+            )}
             <input className="editor-input" placeholder="caption (optional)"
               value={caption} onChange={e => setCaption(e.target.value)} />
           </div>

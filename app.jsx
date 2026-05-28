@@ -175,22 +175,47 @@ function App() {
       .then(data => { setMemories(data); setLoading(false); })
       .catch(err  => { console.error("Failed to load memories:", err); setLoading(false); });
 
-    const channel = db.subscribeToMemories((newMemory) => {
-      setMemories(prev =>
-        prev.some(m => m.id === newMemory.id) ? prev : [...prev, newMemory]
-      );
-    });
+    const channel = db.subscribeToMemories(
+      (newMemory) => {
+        setMemories(prev =>
+          prev.some(m => m.id === newMemory.id) ? prev : [...prev, newMemory]
+        );
+      },
+      (deletedMemory) => {
+        setMemories(prev => prev.filter(m => m.id !== deletedMemory.id));
+      }
+    );
 
     return () => {
       if (channel && channel.unsubscribe) channel.unsubscribe();
     };
   }, []);
 
-  const leaves = React.useMemo(() => buildLeaves(memories), [memories]);
+  const handleDeleteMemory = React.useCallback(async (memory) => {
+    const confirmed = window.confirm("Delete this memory from the JamBook?");
+    if (!confirmed) return;
+
+    try {
+      await db.deleteMemory(memory);
+      setMemories(prev => prev.filter(m => m.id !== memory.id));
+    } catch (err) {
+      window.alert(err.message || "Could not delete this memory. Try again.");
+      console.error(err);
+    }
+  }, []);
+
+  const leaves = React.useMemo(
+    () => buildLeaves(memories, { onDeleteMemory: handleDeleteMemory }),
+    [memories, handleDeleteMemory]
+  );
   const total  = leaves.length;
   const state  =
     currentIndex === 0     ? "closed-front" :
     currentIndex === total ? "closed-back"  : "open";
+
+  React.useEffect(() => {
+    setCurrentIndex(current => Math.min(current, total));
+  }, [total]);
 
   const handleMemoryAdded = (memory) => {
     setMemories(prev =>

@@ -16,9 +16,16 @@ ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "public read"   ON memories;
 DROP POLICY IF EXISTS "public insert" ON memories;
+DROP POLICY IF EXISTS "public delete" ON memories;
 
 CREATE POLICY "public read"   ON memories FOR SELECT USING (true);
 CREATE POLICY "public insert" ON memories FOR INSERT WITH CHECK (true);
+CREATE POLICY "public delete" ON memories FOR DELETE USING (true);
 
 -- 3. Enable real-time for the memories table
 ALTER PUBLICATION supabase_realtime ADD TABLE memories;
+
+-- 4. Optional storage cleanup policy for deleting uploaded media via the Storage API
+DROP POLICY IF EXISTS "public delete media" ON storage.objects;
+CREATE POLICY "public delete media" ON storage.objects
+  FOR DELETE USING (bucket_id = 'jambook-media');
