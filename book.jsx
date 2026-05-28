@@ -37,6 +37,15 @@ function Book({ leaves, currentIndex, setCurrentIndex }) {
   // keyboard nav
   React.useEffect(() => {
     const onKey = (e) => {
+      const target = e.target;
+      const isEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+         target.tagName === "TEXTAREA" ||
+         target.isContentEditable);
+
+      if (isEditable) return;
+
       if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); flipForward(); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); flipBack(); }
     };
