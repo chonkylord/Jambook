@@ -107,6 +107,62 @@ function MobileBook({ leaves }) {
   );
 }
 
+function DesktopRecommendation() {
+  const [visible, setVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(max-width: 700px)");
+    const storageKey = "jambook-desktop-recommendation-dismissed";
+
+    const isDismissed = () => {
+      try {
+        return window.localStorage.getItem(storageKey) === "true";
+      } catch {
+        return false;
+      }
+    };
+
+    const syncVisibility = () => {
+      setVisible(media.matches && !isDismissed());
+    };
+
+    syncVisibility();
+    if (media.addEventListener) {
+      media.addEventListener("change", syncVisibility);
+      return () => media.removeEventListener("change", syncVisibility);
+    }
+
+    media.addListener(syncVisibility);
+    return () => media.removeListener(syncVisibility);
+  }, []);
+
+  const dismiss = () => {
+    try {
+      window.localStorage.setItem("jambook-desktop-recommendation-dismissed", "true");
+    } catch {}
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div className="desktop-rec-overlay" role="dialog" aria-modal="true" aria-labelledby="desktop-rec-title">
+      <div className="desktop-rec-card">
+        <button className="desktop-rec-close" onClick={dismiss} aria-label="Close recommendation">×</button>
+        <div className="desktop-rec-kicker">For the full JamBook</div>
+        <div id="desktop-rec-title" className="desktop-rec-title">A laptop or PC is recommended.</div>
+        <p>
+          The phone version lets you browse and add memories, but the full two-page book,
+          page turns, and keepsake details are most beautiful on a larger screen.
+        </p>
+        <button className="desktop-rec-action" onClick={dismiss}>
+          continue on phone
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [memories,     setMemories]     = React.useState([]);
   const [loading,      setLoading]      = React.useState(true);
@@ -172,6 +228,8 @@ function App() {
       </div>
 
       <MobileBook leaves={leaves} />
+
+      <DesktopRecommendation />
 
       <div className="hint" style={{ opacity: currentIndex === 0 ? 1 : 0.55 }}>
         {currentIndex === 0
