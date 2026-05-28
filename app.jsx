@@ -2,6 +2,111 @@
    app.jsx — root app: loads data, manages state, renders book
    ============================================================ */
 
+function useMobilePageScale() {
+  const [scale, setScale] = React.useState(0.8);
+
+  React.useEffect(() => {
+    const updateScale = () => {
+      const widthScale = (window.innerWidth - 28) / 440;
+      const heightScale = (window.innerHeight - 178) / 580;
+      setScale(Math.max(0.58, Math.min(widthScale, heightScale, 1)));
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    window.addEventListener("orientationchange", updateScale);
+    return () => {
+      window.removeEventListener("resize", updateScale);
+      window.removeEventListener("orientationchange", updateScale);
+    };
+  }, []);
+
+  return scale;
+}
+
+function buildMobilePages(leaves) {
+  const pages = [];
+
+  leaves.forEach((leaf, i) => {
+    const isFirst = i === 0;
+    const isLast = i === leaves.length - 1;
+
+    if (isFirst) {
+      pages.push({ content: leaf.front, type: "cover", label: "Cover" });
+      pages.push({ content: leaf.back, type: "paper", label: "Inside cover" });
+      return;
+    }
+
+    if (isLast && leaf.type === "back-cover") {
+      pages.push({ content: leaf.front, type: "paper", label: "Final page" });
+      pages.push({ content: leaf.back, type: "back-cover", label: "Back cover" });
+      return;
+    }
+
+    pages.push({ content: leaf.front, type: "paper", label: `Page ${pages.length}` });
+    pages.push({ content: leaf.back, type: "paper", label: `Page ${pages.length}` });
+  });
+
+  return pages;
+}
+
+function MobileBook({ leaves }) {
+  const pages = React.useMemo(() => buildMobilePages(leaves), [leaves]);
+  const [pageIndex, setPageIndex] = React.useState(0);
+  const scale = useMobilePageScale();
+  const page = pages[pageIndex] || pages[0];
+
+  React.useEffect(() => {
+    setPageIndex((current) => Math.min(current, Math.max(pages.length - 1, 0)));
+  }, [pages.length]);
+
+  const goPrevious = () => setPageIndex((current) => Math.max(current - 1, 0));
+  const goNext = () => setPageIndex((current) => Math.min(current + 1, pages.length - 1));
+
+  const handlePageTap = (e) => {
+    const target = e.target;
+    if (
+      target &&
+      target.closest &&
+      target.closest("button, input, textarea, label, audio, video")
+    ) {
+      return;
+    }
+    goNext();
+  };
+
+  if (!page) return null;
+
+  return (
+    <div className="mobile-reader">
+      <div
+        className="mobile-page-frame"
+        style={{ width: 440 * scale, height: 580 * scale }}
+        onClick={handlePageTap}
+      >
+        <div
+          className={`mobile-page mobile-${page.type}`}
+          style={{ transform: `scale(${scale})` }}
+        >
+          {page.content}
+        </div>
+      </div>
+
+      <div className="mobile-controls">
+        <button className="mobile-turn" onClick={goPrevious} disabled={pageIndex === 0} aria-label="Previous page">
+          &lsaquo;
+        </button>
+        <div className="mobile-counter">
+          {page.label} &middot; {pageIndex + 1} / {pages.length}
+        </div>
+        <button className="mobile-turn" onClick={goNext} disabled={pageIndex === pages.length - 1} aria-label="Next page">
+          &rsaquo;
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [memories,     setMemories]     = React.useState([]);
   const [loading,      setLoading]      = React.useState(true);
@@ -65,6 +170,8 @@ function App() {
       <div className="stage">
         <Book leaves={leaves} currentIndex={currentIndex} setCurrentIndex={setCurrentIndex} />
       </div>
+
+      <MobileBook leaves={leaves} />
 
       <div className="hint" style={{ opacity: currentIndex === 0 ? 1 : 0.55 }}>
         {currentIndex === 0

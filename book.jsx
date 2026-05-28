@@ -37,6 +37,8 @@ function Book({ leaves, currentIndex, setCurrentIndex }) {
   // keyboard nav
   React.useEffect(() => {
     const onKey = (e) => {
+      if (window.matchMedia("(max-width: 700px)").matches) return;
+
       const target = e.target;
       const isEditable =
         target &&
