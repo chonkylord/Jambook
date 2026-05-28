@@ -1377,6 +1377,20 @@ div:hover > .memory-delete,
   border-radius: 3px;
 }
 
+.editor-status {
+  color: var(--ink-soft);
+  font-family: 'Special Elite', monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid rgba(120, 90, 50, 0.16);
+  border-radius: 3px;
+  text-align: center;
+}
+
 .editor-submit {
   width: 100%;
   padding: 15px;

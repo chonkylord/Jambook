@@ -6,6 +6,7 @@ function Editor({ onClose, onAdd }) {
   const [name,       setName]       = React.useState("");
   const [type,       setType]       = React.useState(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [submitStatus, setSubmitStatus] = React.useState("");
   const [error,      setError]      = React.useState(null);
 
   // Photo
@@ -85,7 +86,7 @@ function Editor({ onClose, onAdd }) {
     const layout = getPhotoLayout();
     const targetAspect = layout.aspect;
     const sourceAspect = photoSize.width / photoSize.height;
-    const outputWidth = 1200;
+    const outputWidth = 900;
     const outputHeight = Math.round(outputWidth / targetAspect);
 
     const img = new Image();
@@ -136,6 +137,7 @@ function Editor({ onClose, onAdd }) {
 
   const handleSubmit = async () => {
     setError(null);
+    setSubmitStatus("");
     if (!name.trim()) { setError("Tell us your name first."); return; }
     if (!type)        { setError("Pick what kind of memory you're adding."); return; }
 
@@ -145,18 +147,23 @@ function Editor({ onClose, onAdd }) {
 
       if (type === "photo") {
         if (!photoFile) { setError("Choose a photo first."); setSubmitting(false); return; }
+        setSubmitStatus("preparing photo...");
         const preparedPhoto = await createPreparedPhoto();
+        setSubmitStatus("uploading photo...");
         const url = await db.uploadMedia(preparedPhoto.file, "photos");
         content = { url, caption, aspect: preparedPhoto.layout.aspect, displayWidth: preparedPhoto.layout.width };
       } else if (type === "note") {
         if (!noteText.trim()) { setError("Write something first."); setSubmitting(false); return; }
+        setSubmitStatus("placing note...");
         content = { text: noteText };
       } else if (type === "video") {
         if (!videoFile) { setError("Choose a video first."); setSubmitting(false); return; }
+        setSubmitStatus("uploading video...");
         const url = await db.uploadMedia(videoFile, "videos");
         content = { url, caption: videoCaption };
       }
 
+      setSubmitStatus("placing memory...");
       const memory = await db.addMemory({ type, content, contributor_name: name.trim() });
       onAdd(memory);
     } catch (err) {
@@ -164,6 +171,7 @@ function Editor({ onClose, onAdd }) {
       console.error(err);
     } finally {
       setSubmitting(false);
+      setSubmitStatus("");
     }
   };
 
@@ -205,7 +213,8 @@ function Editor({ onClose, onAdd }) {
             ].map(t => (
               <button key={t.id}
                 className={`editor-type-btn${type === t.id ? " active" : ""}`}
-                onClick={() => pickType(t.id)}>
+                onClick={() => pickType(t.id)}
+                disabled={submitting}>
                 <span className="editor-type-icon">{t.icon}</span>
                 <span>{t.label}</span>
               </button>
@@ -245,6 +254,7 @@ function Editor({ onClose, onAdd }) {
                     type="button"
                     className={photoCrop.mode === "fit" ? "active" : ""}
                     onClick={() => setCropMode("fit")}
+                    disabled={submitting}
                   >
                     full image
                   </button>
@@ -252,6 +262,7 @@ function Editor({ onClose, onAdd }) {
                     type="button"
                     className={photoCrop.mode === "crop" ? "active" : ""}
                     onClick={() => setCropMode("crop")}
+                    disabled={submitting}
                   >
                     crop
                   </button>
@@ -265,7 +276,7 @@ function Editor({ onClose, onAdd }) {
                     step="0.05"
                     value={photoCrop.zoom}
                     onChange={e => setCropValue("zoom", e.target.value)}
-                    disabled={photoCrop.mode === "fit"}
+                    disabled={photoCrop.mode === "fit" || submitting}
                   />
                 </label>
                 <label>
@@ -277,7 +288,7 @@ function Editor({ onClose, onAdd }) {
                     step="1"
                     value={photoCrop.x}
                     onChange={e => setCropValue("x", e.target.value)}
-                    disabled={photoCrop.mode === "fit"}
+                    disabled={photoCrop.mode === "fit" || submitting}
                   />
                 </label>
                 <label>
@@ -289,7 +300,7 @@ function Editor({ onClose, onAdd }) {
                     step="1"
                     value={photoCrop.y}
                     onChange={e => setCropValue("y", e.target.value)}
-                    disabled={photoCrop.mode === "fit"}
+                    disabled={photoCrop.mode === "fit" || submitting}
                   />
                 </label>
               </div>
@@ -327,6 +338,7 @@ function Editor({ onClose, onAdd }) {
         )}
 
         {error && <div className="editor-error">{error}</div>}
+        {submitting && submitStatus && <div className="editor-status">{submitStatus}</div>}
 
         {!db.configured && (
           <div className="editor-error">
@@ -335,7 +347,7 @@ function Editor({ onClose, onAdd }) {
         )}
 
         <button className="editor-submit" onClick={handleSubmit} disabled={submitting || !db.configured}>
-          {submitting ? "adding to the book..." : "add to the book →"}
+          {submitting ? (submitStatus || "adding to the book...") : "add to the book →"}
         </button>
       </div>
     </div>

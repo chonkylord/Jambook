@@ -92,7 +92,10 @@ const db = (() => {
     if (!configured) throw new Error('Supabase not configured');
     const ext  = (file.name || 'file').split('.').pop();
     const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await client.storage.from('jambook-media').upload(path, file);
+    const { error } = await client.storage.from('jambook-media').upload(path, file, {
+      cacheControl: '31536000',
+      upsert: false,
+    });
     if (error) throw error;
     return client.storage.from('jambook-media').getPublicUrl(path).data.publicUrl;
   }
@@ -108,12 +111,16 @@ const db = (() => {
   async function deleteMemory(memory) {
     if (!configured) throw new Error('Supabase not configured');
 
-    const { error } = await client
+    const { data, error } = await client
       .from('memories')
       .delete()
-      .eq('id', memory.id);
+      .eq('id', memory.id)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('Supabase did not delete this memory. Refresh and try again.');
+    }
 
     const mediaPath = storagePathFromPublicUrl(memory.content && memory.content.url);
     if (mediaPath) {
