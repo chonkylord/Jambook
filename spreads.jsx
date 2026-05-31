@@ -112,6 +112,8 @@ function useDrag(memory, onPlacementUpdate) {
 
   const finishDrag = React.useCallback(() => {
     dragging.current = false;
+    window.__jambookDraggingMemory = false;
+    window.__jambookDragSuppressUntil = Date.now() + 300;
     onPlacementUpdate(
       memory.id,
       currentPos.current.x,
@@ -142,6 +144,8 @@ function useDrag(memory, onPlacementUpdate) {
     currentPageNum.current = Number(pageEl.dataset.pageNum) || memory.page_num;
     lastPointer.current = { clientX: e.clientX, clientY: e.clientY };
     dragging.current = true;
+    window.__jambookDraggingMemory = true;
+    window.__jambookDragSuppressUntil = Date.now() + 300;
 
     const onMove = (ev) => {
       updateFromPoint(ev.clientX, ev.clientY);
@@ -178,6 +182,8 @@ function useDrag(memory, onPlacementUpdate) {
     currentPageNum.current = Number(pageEl.dataset.pageNum) || memory.page_num;
     lastPointer.current = { clientX: touch.clientX, clientY: touch.clientY };
     dragging.current = true;
+    window.__jambookDraggingMemory = true;
+    window.__jambookDragSuppressUntil = Date.now() + 300;
 
     const onMove = (ev) => {
       ev.preventDefault();

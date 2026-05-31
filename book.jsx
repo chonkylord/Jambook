@@ -67,6 +67,8 @@ function Book({ leaves, currentIndex, setCurrentIndex, navRef }) {
 
   const handleLeafClick = (i, isFlipped) => (e) => {
     e.stopPropagation();
+    if (window.__jambookDraggingMemory) return;
+    if (window.__jambookDragSuppressUntil && Date.now() < window.__jambookDragSuppressUntil) return;
     if (animating) return;
     if (isFlipped) flipBack();
     else flipForward();
