@@ -84,13 +84,22 @@ const db = (() => {
     return data;
   }
 
-  async function updateMemoryPosition(id, currentContent, x, y) {
+  async function updateMemoryPlacement(id, currentContent, x, y, pageNum) {
     if (!configured) return;
+    const nextContent = { ...currentContent, x, y };
+    const updatePayload = { content: nextContent };
+    if (Number.isInteger(pageNum) && pageNum > 0) {
+      updatePayload.page_num = pageNum;
+    }
     const { error } = await client
       .from('memories')
-      .update({ content: { ...currentContent, x, y } })
+      .update(updatePayload)
       .eq('id', id);
     if (error) throw error;
+  }
+
+  async function updateMemoryPosition(id, currentContent, x, y) {
+    return updateMemoryPlacement(id, currentContent, x, y);
   }
 
   async function uploadMedia(file, folder) {
@@ -150,6 +159,7 @@ const db = (() => {
     getMemories,
     addMemory,
     updateMemoryPosition,
+    updateMemoryPlacement,
     deleteMemory,
     uploadMedia,
     subscribeToMemories,

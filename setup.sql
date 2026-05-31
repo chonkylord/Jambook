@@ -16,10 +16,12 @@ ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "public read"   ON memories;
 DROP POLICY IF EXISTS "public insert" ON memories;
+DROP POLICY IF EXISTS "public update" ON memories;
 DROP POLICY IF EXISTS "public delete" ON memories;
 
 CREATE POLICY "public read"   ON memories FOR SELECT USING (true);
 CREATE POLICY "public insert" ON memories FOR INSERT WITH CHECK (true);
+CREATE POLICY "public update" ON memories FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "public delete" ON memories FOR DELETE USING (true);
 
 -- 3. Enable real-time for the memories table

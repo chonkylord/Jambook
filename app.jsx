@@ -210,13 +210,17 @@ function App() {
     }
   }, []);
 
-  const handlePositionUpdate = React.useCallback(async (id, x, y, currentContent) => {
+  const handlePositionUpdate = React.useCallback(async (id, x, y, currentContent, pageNum) => {
     // Optimistic local update so the drag feels instant
     setMemories(prev =>
-      prev.map(m => m.id === id ? { ...m, content: { ...m.content, x, y } } : m)
+      prev.map(m =>
+        m.id === id
+          ? { ...m, page_num: Number.isInteger(pageNum) && pageNum > 0 ? pageNum : m.page_num, content: { ...m.content, x, y } }
+          : m
+      )
     );
     try {
-      await db.updateMemoryPosition(id, currentContent, x, y);
+      await db.updateMemoryPlacement(id, currentContent, x, y, pageNum);
     } catch (err) {
       console.error('Failed to save position:', err);
     }

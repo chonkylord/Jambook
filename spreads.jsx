@@ -45,88 +45,157 @@ const Wave = ({ heights = [8,14,6,18,12,20,10,16,6,14,9,20,12,8,14,6,16] }) => (
    correcting for whatever CSS scale the .stage applies.
    Calls onPositionUpdate(id, x, y, content) when drag ends.
 ──────────────────────────────────────────────────────────── */
-function useDrag(memory, onPositionUpdate) {
+function useDrag(memory, onPlacementUpdate) {
   const [localPos, setLocalPos] = React.useState({
     x: memory.content.x,
     y: memory.content.y,
   });
-  // Refs avoid stale closures in event listener callbacks
-  const dragging   = React.useRef(false);
+  const dragging = React.useRef(false);
   const currentPos = React.useRef({ x: memory.content.x, y: memory.content.y });
+  const currentPageNum = React.useRef(memory.page_num);
+  const pointerOffset = React.useRef({ x: 0, y: 0 });
+  const dragNode = React.useRef(null);
+  const lastPointer = React.useRef({ clientX: 0, clientY: 0 });
 
-  // Sync from external realtime updates (only when not mid-drag)
   React.useEffect(() => {
     if (!dragging.current) {
       const p = { x: memory.content.x, y: memory.content.y };
       setLocalPos(p);
       currentPos.current = p;
+      currentPageNum.current = memory.page_num;
     }
-  }, [memory.content.x, memory.content.y]);
+  }, [memory.content.x, memory.content.y, memory.page_num]);
 
-  // Mouse drag
+  const findPageAtPoint = React.useCallback((clientX, clientY) => {
+    const nodes = document.elementsFromPoint
+      ? document.elementsFromPoint(clientX, clientY)
+      : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+
+    for (const node of nodes) {
+      if (!node) continue;
+      if (dragNode.current && (node === dragNode.current || dragNode.current.contains(node))) continue;
+
+      const pageEl = node.closest?.('[data-page-num]');
+      if (!pageEl) continue;
+
+      const pageNum = Number(pageEl.dataset.pageNum);
+      if (Number.isFinite(pageNum)) {
+        return { pageEl, pageNum };
+      }
+    }
+
+    const fallback = dragNode.current?.closest?.('[data-page-num]');
+    if (fallback) {
+      const pageNum = Number(fallback.dataset.pageNum);
+      if (Number.isFinite(pageNum)) return { pageEl: fallback, pageNum };
+    }
+
+    return null;
+  }, []);
+
+  const updateFromPoint = React.useCallback((clientX, clientY) => {
+    const target = findPageAtPoint(clientX, clientY);
+    if (!target) return;
+
+    const rect = target.pageEl.getBoundingClientRect();
+    const scale = rect.width / 440;
+    const pageX = (clientX - rect.left) / scale;
+    const pageY = (clientY - rect.top) / scale;
+    const x = pageX - pointerOffset.current.x;
+    const y = pageY - pointerOffset.current.y;
+
+    currentPageNum.current = target.pageNum;
+    currentPos.current = { x, y };
+    lastPointer.current = { clientX, clientY };
+    setLocalPos({ x, y });
+  }, [findPageAtPoint]);
+
+  const finishDrag = React.useCallback(() => {
+    dragging.current = false;
+    onPlacementUpdate(
+      memory.id,
+      currentPos.current.x,
+      currentPos.current.y,
+      memory.content,
+      currentPageNum.current
+    );
+  }, [memory.content, memory.id, onPlacementUpdate]);
+
   const onMouseDown = (e) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
 
-    const pageEl = e.currentTarget.closest('.page');
+    const pageEl = e.currentTarget.closest('[data-page-num]');
     if (!pageEl) return;
 
     const rect = pageEl.getBoundingClientRect();
-    const scale     = rect.width / 440;
-    const startCX   = e.clientX;
-    const startCY   = e.clientY;
-    const startX    = currentPos.current.x;
-    const startY    = currentPos.current.y;
+    const scale = rect.width / 440;
+    const startPageX = (e.clientX - rect.left) / scale;
+    const startPageY = (e.clientY - rect.top) / scale;
+
+    dragNode.current = e.currentTarget;
+    pointerOffset.current = {
+      x: startPageX - currentPos.current.x,
+      y: startPageY - currentPos.current.y,
+    };
+    currentPageNum.current = Number(pageEl.dataset.pageNum) || memory.page_num;
+    lastPointer.current = { clientX: e.clientX, clientY: e.clientY };
     dragging.current = true;
 
     const onMove = (ev) => {
-      const x = startX + (ev.clientX - startCX) / scale;
-      const y = startY + (ev.clientY - startCY) / scale;
-      currentPos.current = { x, y };
-      setLocalPos({ x, y });
+      updateFromPoint(ev.clientX, ev.clientY);
     };
     const onUp = () => {
-      dragging.current = false;
-      onPositionUpdate(memory.id, currentPos.current.x, currentPos.current.y, memory.content);
+      updateFromPoint(lastPointer.current.clientX, lastPointer.current.clientY);
+      finishDrag();
       document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup',   onUp);
+      document.removeEventListener('mouseup', onUp);
+      dragNode.current = null;
     };
+
     document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup',   onUp);
+    document.addEventListener('mouseup', onUp);
+    updateFromPoint(e.clientX, e.clientY);
   };
 
-  // Touch drag
   const onTouchStart = (e) => {
     e.stopPropagation();
-    const touch  = e.touches[0];
-    const pageEl = e.currentTarget.closest('.page');
-    if (!pageEl) return;
+    const touch = e.touches[0];
+    const pageEl = e.currentTarget.closest('[data-page-num]');
+    if (!pageEl || !touch) return;
 
     const rect = pageEl.getBoundingClientRect();
-    const scale     = rect.width / 440;
-    const startCX   = touch.clientX;
-    const startCY   = touch.clientY;
-    const startX    = currentPos.current.x;
-    const startY    = currentPos.current.y;
+    const scale = rect.width / 440;
+    const startPageX = (touch.clientX - rect.left) / scale;
+    const startPageY = (touch.clientY - rect.top) / scale;
+
+    dragNode.current = e.currentTarget;
+    pointerOffset.current = {
+      x: startPageX - currentPos.current.x,
+      y: startPageY - currentPos.current.y,
+    };
+    currentPageNum.current = Number(pageEl.dataset.pageNum) || memory.page_num;
+    lastPointer.current = { clientX: touch.clientX, clientY: touch.clientY };
     dragging.current = true;
 
     const onMove = (ev) => {
       ev.preventDefault();
       const t = ev.touches[0];
-      const x = startX + (t.clientX - startCX) / scale;
-      const y = startY + (t.clientY - startCY) / scale;
-      currentPos.current = { x, y };
-      setLocalPos({ x, y });
+      if (!t) return;
+      updateFromPoint(t.clientX, t.clientY);
     };
     const onEnd = () => {
-      dragging.current = false;
-      onPositionUpdate(memory.id, currentPos.current.x, currentPos.current.y, memory.content);
+      updateFromPoint(lastPointer.current.clientX, lastPointer.current.clientY);
+      finishDrag();
       document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('touchend',  onEnd);
+      document.removeEventListener('touchend', onEnd);
+      dragNode.current = null;
     };
+
     document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend',  onEnd);
+    document.addEventListener('touchend', onEnd);
+    updateFromPoint(touch.clientX, touch.clientY);
   };
 
   return { localPos, onMouseDown, onTouchStart };
@@ -165,6 +234,7 @@ const PhotoEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
     <>
       <div
         className="polaroid"
+        data-memory-id={memory.id}
         onMouseDown={onMouseDown}
         onTouchStart={onTouchStart}
         onClick={e => e.stopPropagation()}
@@ -211,6 +281,7 @@ const NoteEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
   return (
     <div
       className="note-card"
+      data-memory-id={memory.id}
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
       onClick={e => e.stopPropagation()}
@@ -247,6 +318,7 @@ const VideoEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
 
   return (
     <div
+      data-memory-id={memory.id}
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
       onClick={e => e.stopPropagation()}
@@ -375,8 +447,8 @@ const WelcomePage = () => (
   </div>
 );
 
-const EmptyPage = ({ side }) => (
-  <div className={`page ${side}`}>
+const EmptyPage = ({ side, pageNum }) => (
+  <div className={`page ${side}`} data-page-num={pageNum}>
     <div style={{
       position: "absolute", inset: 0,
       display: "flex", flexDirection: "column",
@@ -409,8 +481,8 @@ const BackPaper = () => (
   </div>
 );
 
-const ContentPage = ({ side, memories, onDeleteMemory, onPositionUpdate }) => (
-  <div className={`page ${side}`}>
+const ContentPage = ({ side, pageNum, memories, onDeleteMemory, onPositionUpdate }) => (
+  <div className={`page ${side}`} data-page-num={pageNum}>
     {(memories || []).map(m => (
       <MemoryEl
         key={m.id}
@@ -445,8 +517,8 @@ function buildLeaves(memories, options = {}) {
     {
       front: <WelcomePage />,
       back: byPage[1]
-        ? <ContentPage side="left" memories={byPage[1]} {...pageProps} />
-        : <EmptyPage side="left" />,
+        ? <ContentPage side="left" pageNum={1} memories={byPage[1]} {...pageProps} />
+        : <EmptyPage side="left" pageNum={1} />,
     },
   ];
 
@@ -456,8 +528,8 @@ function buildLeaves(memories, options = {}) {
     const r = byPage[rightNum] || [];
     const l = byPage[leftNum]  || [];
     leaves.push({
-      front: r.length ? <ContentPage side="right" memories={r} {...pageProps} /> : <EmptyPage side="right" />,
-      back:  l.length ? <ContentPage side="left"  memories={l} {...pageProps} /> : <EmptyPage side="left" />,
+      front: r.length ? <ContentPage side="right" pageNum={rightNum} memories={r} {...pageProps} /> : <EmptyPage side="right" pageNum={rightNum} />,
+      back:  l.length ? <ContentPage side="left"  pageNum={leftNum}  memories={l} {...pageProps} /> : <EmptyPage side="left" pageNum={leftNum} />,
     });
   }
 
