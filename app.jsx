@@ -183,6 +183,11 @@ function App() {
       },
       (deletedMemory) => {
         setMemories(prev => prev.filter(m => m.id !== deletedMemory.id));
+      },
+      (updatedMemory) => {
+        setMemories(prev =>
+          prev.map(m => m.id === updatedMemory.id ? updatedMemory : m)
+        );
       }
     );
 
@@ -204,9 +209,24 @@ function App() {
     }
   }, []);
 
+  const handlePositionUpdate = React.useCallback(async (id, x, y, currentContent) => {
+    // Optimistic local update so the drag feels instant
+    setMemories(prev =>
+      prev.map(m => m.id === id ? { ...m, content: { ...m.content, x, y } } : m)
+    );
+    try {
+      await db.updateMemoryPosition(id, currentContent, x, y);
+    } catch (err) {
+      console.error('Failed to save position:', err);
+    }
+  }, []);
+
   const leaves = React.useMemo(
-    () => buildLeaves(memories, { onDeleteMemory: handleDeleteMemory }),
-    [memories, handleDeleteMemory]
+    () => buildLeaves(memories, {
+      onDeleteMemory:  handleDeleteMemory,
+      onPositionUpdate: handlePositionUpdate,
+    }),
+    [memories, handleDeleteMemory, handlePositionUpdate]
   );
   const total  = leaves.length;
   const state  =

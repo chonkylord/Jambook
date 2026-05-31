@@ -40,20 +40,107 @@ const Wave = ({ heights = [8,14,6,18,12,20,10,16,6,14,9,20,12,8,14,6,16] }) => (
   </div>
 );
 
-/* ── Memory element renderers ───────────────────────────────── */
-const DeleteMemoryButton = ({ memory, onDeleteMemory }) => {
-  if (!onDeleteMemory) return null;
+/* ── Drag hook ───────────────────────────────────────────────
+   Tracks pointer position relative to the .page container,
+   correcting for whatever CSS scale the .stage applies.
+   Calls onPositionUpdate(id, x, y, content) when drag ends.
+──────────────────────────────────────────────────────────── */
+function useDrag(memory, onPositionUpdate) {
+  const [localPos, setLocalPos] = React.useState({
+    x: memory.content.x,
+    y: memory.content.y,
+  });
+  // Refs avoid stale closures in event listener callbacks
+  const dragging   = React.useRef(false);
+  const currentPos = React.useRef({ x: memory.content.x, y: memory.content.y });
 
-  const handleClick = (e) => {
+  // Sync from external realtime updates (only when not mid-drag)
+  React.useEffect(() => {
+    if (!dragging.current) {
+      const p = { x: memory.content.x, y: memory.content.y };
+      setLocalPos(p);
+      currentPos.current = p;
+    }
+  }, [memory.content.x, memory.content.y]);
+
+  // Mouse drag
+  const onMouseDown = (e) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
-    onDeleteMemory(memory);
+    e.preventDefault();
+
+    const pageEl = e.currentTarget.closest('.page');
+    if (!pageEl) return;
+
+    const rect = pageEl.getBoundingClientRect();
+    const scale     = rect.width / 440;
+    const startCX   = e.clientX;
+    const startCY   = e.clientY;
+    const startX    = currentPos.current.x;
+    const startY    = currentPos.current.y;
+    dragging.current = true;
+
+    const onMove = (ev) => {
+      const x = startX + (ev.clientX - startCX) / scale;
+      const y = startY + (ev.clientY - startCY) / scale;
+      currentPos.current = { x, y };
+      setLocalPos({ x, y });
+    };
+    const onUp = () => {
+      dragging.current = false;
+      onPositionUpdate(memory.id, currentPos.current.x, currentPos.current.y, memory.content);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
   };
 
+  // Touch drag
+  const onTouchStart = (e) => {
+    e.stopPropagation();
+    const touch  = e.touches[0];
+    const pageEl = e.currentTarget.closest('.page');
+    if (!pageEl) return;
+
+    const rect = pageEl.getBoundingClientRect();
+    const scale     = rect.width / 440;
+    const startCX   = touch.clientX;
+    const startCY   = touch.clientY;
+    const startX    = currentPos.current.x;
+    const startY    = currentPos.current.y;
+    dragging.current = true;
+
+    const onMove = (ev) => {
+      ev.preventDefault();
+      const t = ev.touches[0];
+      const x = startX + (t.clientX - startCX) / scale;
+      const y = startY + (t.clientY - startCY) / scale;
+      currentPos.current = { x, y };
+      setLocalPos({ x, y });
+    };
+    const onEnd = () => {
+      dragging.current = false;
+      onPositionUpdate(memory.id, currentPos.current.x, currentPos.current.y, memory.content);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend',  onEnd);
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend',  onEnd);
+  };
+
+  return { localPos, onMouseDown, onTouchStart };
+}
+
+/* ── Delete button ───────────────────────────────────────── */
+const DeleteMemoryButton = ({ memory, onDeleteMemory }) => {
+  if (!onDeleteMemory) return null;
   return (
     <button
       className="memory-delete"
-      onClick={handleClick}
+      onClick={e => { e.stopPropagation(); onDeleteMemory(memory); }}
       onMouseDown={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
       aria-label="Delete this memory"
       title="Delete this memory"
     >
@@ -62,44 +149,82 @@ const DeleteMemoryButton = ({ memory, onDeleteMemory }) => {
   );
 };
 
-const PhotoEl = ({ memory, onDeleteMemory }) => {
+/* ── Memory elements ─────────────────────────────────────── */
+const PhotoEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
   const { content, contributor_name } = memory;
-  const { x, y, rotation, url, caption, aspect = 1.22, displayWidth } = content;
-  const width = displayWidth || content.width || 200;
+  const { rotation, url, caption, aspect = 1.22, displayWidth } = content;
+  const width  = displayWidth || content.width || 200;
   const photoH = Math.round(width / aspect);
+
+  const { localPos, onMouseDown, onTouchStart } = useDrag(
+    memory,
+    onPositionUpdate || (() => {})
+  );
+
   return (
     <>
-      <div className="polaroid" style={{
-        position: "absolute", left: x, top: y, width,
-        height: photoH + 56,
-        transform: `rotate(${rotation}deg)`,
-        zIndex: 3,
-      }}>
+      <div
+        className="polaroid"
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        style={{
+          position: "absolute",
+          left:   localPos.x,
+          top:    localPos.y,
+          width,
+          height: photoH + 56,
+          transform: `rotate(${rotation}deg)`,
+          zIndex: 3,
+          cursor: "grab",
+          userSelect: "none",
+          touchAction: "none",
+        }}
+      >
         <div className="photo" style={{ backgroundImage: `url(${url})`, height: photoH }} />
         <div className="caption">
           {caption || (contributor_name && contributor_name !== "anonymous" ? `from ${contributor_name}` : "")}
         </div>
         <DeleteMemoryButton memory={memory} onDeleteMemory={onDeleteMemory} />
       </div>
+      {/* Tape follows the photo during drag */}
       <div className="tape washi" style={{
         position: "absolute",
-        left: x + width * 0.28,
-        top: y - 13,
+        left:  localPos.x + width * 0.28,
+        top:   localPos.y - 13,
         transform: `rotate(${rotation - 5}deg)`,
+        pointerEvents: "none",
       }} />
     </>
   );
 };
 
-const NoteEl = ({ memory, onDeleteMemory }) => {
+const NoteEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
   const { content, contributor_name } = memory;
-  const { x, y, rotation, width = 200, text } = content;
+  const { rotation, width = 200, text } = content;
+
+  const { localPos, onMouseDown, onTouchStart } = useDrag(
+    memory,
+    onPositionUpdate || (() => {})
+  );
+
   return (
-    <div className="note-card" style={{
-      position: "absolute", left: x, top: y, width,
-      transform: `rotate(${rotation}deg)`,
-      fontSize: 20, zIndex: 3,
-    }}>
+    <div
+      className="note-card"
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      style={{
+        position: "absolute",
+        left:   localPos.x,
+        top:    localPos.y,
+        width,
+        transform: `rotate(${rotation}deg)`,
+        fontSize: 20,
+        zIndex: 3,
+        cursor: "grab",
+        userSelect: "none",
+        touchAction: "none",
+      }}
+    >
       {text}
       {contributor_name && contributor_name !== "anonymous" && (
         <span className="signature">— {contributor_name}</span>
@@ -109,17 +234,36 @@ const NoteEl = ({ memory, onDeleteMemory }) => {
   );
 };
 
-const VideoEl = ({ memory, onDeleteMemory }) => {
+const VideoEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
   const { content, contributor_name } = memory;
-  const { x, y, rotation, width = 220, url, caption } = content;
+  const { rotation, width = 220, url, caption } = content;
+
+  const { localPos, onMouseDown, onTouchStart } = useDrag(
+    memory,
+    onPositionUpdate || (() => {})
+  );
+
   return (
-    <div style={{
-      position: "absolute", left: x, top: y, width,
-      transform: `rotate(${rotation}deg)`,
-      zIndex: 3, background: "#1a1008", padding: 10,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
-    }}>
+    <div
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      style={{
+        position: "absolute",
+        left:   localPos.x,
+        top:    localPos.y,
+        width,
+        transform: `rotate(${rotation}deg)`,
+        zIndex: 3,
+        background: "#1a1008",
+        padding: 10,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+        cursor: "grab",
+        userSelect: "none",
+        touchAction: "none",
+      }}
+    >
       <video src={url} controls style={{ width: "100%", display: "block" }}
+        onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()} />
       {(caption || contributor_name) && (
         <div style={{ fontFamily: "'Caveat', cursive", fontSize: 16, color: "#f4ead2", textAlign: "center", padding: "4px 0" }}>
@@ -131,11 +275,12 @@ const VideoEl = ({ memory, onDeleteMemory }) => {
   );
 };
 
-function MemoryEl({ memory, onDeleteMemory }) {
+function MemoryEl({ memory, onDeleteMemory, onPositionUpdate }) {
+  const props = { memory, onDeleteMemory, onPositionUpdate };
   switch (memory.type) {
-    case "photo": return <PhotoEl memory={memory} onDeleteMemory={onDeleteMemory} />;
-    case "note":  return <NoteEl  memory={memory} onDeleteMemory={onDeleteMemory} />;
-    case "video": return <VideoEl memory={memory} onDeleteMemory={onDeleteMemory} />;
+    case "photo": return <PhotoEl {...props} />;
+    case "note":  return <NoteEl  {...props} />;
+    case "video": return <VideoEl {...props} />;
     default:      return null;
   }
 }
@@ -261,27 +406,23 @@ const BackPaper = () => (
   </div>
 );
 
-const ContentPage = ({ side, memories, onDeleteMemory }) => (
+const ContentPage = ({ side, memories, onDeleteMemory, onPositionUpdate }) => (
   <div className={`page ${side}`}>
     {(memories || []).map(m => (
-      <MemoryEl key={m.id} memory={m} onDeleteMemory={onDeleteMemory} />
+      <MemoryEl
+        key={m.id}
+        memory={m}
+        onDeleteMemory={onDeleteMemory}
+        onPositionUpdate={onPositionUpdate}
+      />
     ))}
   </div>
 );
 
-/* ── buildLeaves ────────────────────────────────────────────────
-   Visual spread at currentIndex = S:
-     Left  = leaves[S-1].back
-     Right = leaves[S].front
-
-   Leaf mapping:
-     leaves[0]       = cover / inside-front
-     leaves[1].front = WelcomePage (always static)
-     leaves[K].back  = page_num 2K-1  (left pages, odd)
-     leaves[K].front = page_num 2*(K-1) (right pages, even, K >= 2)
-─────────────────────────────────────────────────────────────── */
+/* ── buildLeaves ────────────────────────────────────────────── */
 function buildLeaves(memories, options = {}) {
-  const { onDeleteMemory } = options;
+  const { onDeleteMemory, onPositionUpdate } = options;
+
   const byPage = {};
   for (const m of memories) {
     if (!byPage[m.page_num]) byPage[m.page_num] = [];
@@ -292,15 +433,16 @@ function buildLeaves(memories, options = {}) {
     ? Math.max(...memories.map(m => m.page_num))
     : 0;
 
-  // Always show at least two blank content leaves beyond existing
   const maxContentLeaf = Math.max(2, Math.ceil((maxPage + 2) / 2));
+
+  const pageProps = { onDeleteMemory, onPositionUpdate };
 
   const leaves = [
     { type: "cover", front: <CoverFront />, back: <InsideCoverPaper /> },
     {
       front: <WelcomePage />,
       back: byPage[1]
-        ? <ContentPage side="left" memories={byPage[1]} onDeleteMemory={onDeleteMemory} />
+        ? <ContentPage side="left" memories={byPage[1]} {...pageProps} />
         : <EmptyPage side="left" />,
     },
   ];
@@ -311,8 +453,8 @@ function buildLeaves(memories, options = {}) {
     const r = byPage[rightNum] || [];
     const l = byPage[leftNum]  || [];
     leaves.push({
-      front: r.length ? <ContentPage side="right" memories={r} onDeleteMemory={onDeleteMemory} /> : <EmptyPage side="right" />,
-      back:  l.length ? <ContentPage side="left"  memories={l} onDeleteMemory={onDeleteMemory} /> : <EmptyPage side="left" />,
+      front: r.length ? <ContentPage side="right" memories={r} {...pageProps} /> : <EmptyPage side="right" />,
+      back:  l.length ? <ContentPage side="left"  memories={l} {...pageProps} /> : <EmptyPage side="left" />,
     });
   }
 

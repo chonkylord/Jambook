@@ -9,30 +9,27 @@ const db = (() => {
     ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
 
-  const MAX_PER_PAGE = 3;
+  // 2 items per page gives each photo its own breathing room.
+  const MAX_PER_PAGE = 2;
 
-  // Scrapbook placement zones on a 440×580 page (page-local coords).
-  // Three slots per page; choose based on how many items already exist.
+  // Slot 0 anchors upper-left; slot 1 anchors lower-right.
+  // The vertical gap (~250 px) comfortably fits a polaroid on each half.
   const ZONES = [
-    { x: 28,  y: 68,  rot: -5, w: 205 },  // top-left anchor
-    { x: 182, y: 88,  rot:  4, w: 185 },  // top-right
-    { x: 42,  y: 300, rot: -3, w: 215 },  // lower-left
-    { x: 188, y: 280, rot:  5, w: 190 },  // lower-right
-    { x: 55,  y: 390, rot: -4, w: 195 },  // bottom-left
-    { x: 198, y: 375, rot:  3, w: 175 },  // bottom-right
+    { x: 22,  y: 48,  rot: -5, w: 190 },  // upper-left
+    { x: 145, y: 295, rot:  4, w: 182 },  // lower-right
+    { x: 35,  y: 155, rot: -3, w: 185 },  // mid-left (overflow safety)
+    { x: 150, y: 80,  rot:  5, w: 178 },  // upper-right (overflow safety)
   ];
 
-  function jitter(range) {
-    return (Math.random() - 0.5) * range;
-  }
+  function jitter(range) { return (Math.random() - 0.5) * range; }
 
   function computePosition(slotIndex) {
     const zone = ZONES[slotIndex % ZONES.length];
     return {
-      x:        zone.x + jitter(28),
-      y:        zone.y + jitter(28),
+      x:        zone.x + jitter(20),   // ±10 px horizontal
+      y:        zone.y + jitter(16),   // ±8 px vertical (tight, prevents overlap)
       rotation: zone.rot + jitter(4),
-      width:    zone.w + jitter(20),
+      width:    zone.w + jitter(16),   // ±8 px
     };
   }
 
@@ -50,7 +47,6 @@ const db = (() => {
   async function addMemory({ type, content, contributor_name }) {
     if (!configured) throw new Error('Supabase not configured — fill in config.js');
 
-    // Count memories per page to find first page with room
     const { data: existing } = await client
       .from('memories')
       .select('page_num');
@@ -88,6 +84,15 @@ const db = (() => {
     return data;
   }
 
+  async function updateMemoryPosition(id, currentContent, x, y) {
+    if (!configured) return;
+    const { error } = await client
+      .from('memories')
+      .update({ content: { ...currentContent, x, y } })
+      .eq('id', id);
+    if (error) throw error;
+  }
+
   async function uploadMedia(file, folder) {
     if (!configured) throw new Error('Supabase not configured');
     const ext  = (file.name || 'file').split('.').pop();
@@ -103,45 +108,50 @@ const db = (() => {
   function storagePathFromPublicUrl(url) {
     if (!url || typeof url !== 'string') return null;
     const marker = '/storage/v1/object/public/jambook-media/';
-    const index = url.indexOf(marker);
-    if (index === -1) return null;
-    return decodeURIComponent(url.slice(index + marker.length).split('?')[0]);
+    const idx = url.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(url.slice(idx + marker.length).split('?')[0]);
   }
 
   async function deleteMemory(memory) {
     if (!configured) throw new Error('Supabase not configured');
-
     const { data, error } = await client
       .from('memories')
       .delete()
       .eq('id', memory.id)
       .select('id');
-
     if (error) throw error;
-    if (!data || data.length === 0) {
+    if (!data || data.length === 0)
       throw new Error('Supabase did not delete this memory. Refresh and try again.');
-    }
-
     const mediaPath = storagePathFromPublicUrl(memory.content && memory.content.url);
     if (mediaPath) {
       await client.storage.from('jambook-media').remove([mediaPath]).catch(() => {});
     }
   }
 
-  function subscribeToMemories(onInsert, onDelete) {
+  function subscribeToMemories(onInsert, onDelete, onUpdate) {
     if (!configured) return { unsubscribe: () => {} };
     return client
-      .channel('memory-inserts')
+      .channel('memory-changes')
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'memories' },
-        (payload) => onInsert(payload.new)
-      )
+        (p) => onInsert?.(p.new))
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'memories' },
-        (payload) => onDelete && onDelete(payload.old)
-      )
+        (p) => onDelete?.(p.old))
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'memories' },
+        (p) => onUpdate?.(p.new))
       .subscribe();
   }
 
-  return { configured, getMemories, addMemory, deleteMemory, uploadMedia, subscribeToMemories };
+  return {
+    configured,
+    getMemories,
+    addMemory,
+    updateMemoryPosition,
+    deleteMemory,
+    uploadMedia,
+    subscribeToMemories,
+  };
 })();
