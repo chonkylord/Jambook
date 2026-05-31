@@ -167,6 +167,7 @@ const PhotoEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
         className="polaroid"
         onMouseDown={onMouseDown}
         onTouchStart={onTouchStart}
+        onClick={e => e.stopPropagation()}
         style={{
           position: "absolute",
           left:   localPos.x,
@@ -212,6 +213,7 @@ const NoteEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
       className="note-card"
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
+      onClick={e => e.stopPropagation()}
       style={{
         position: "absolute",
         left:   localPos.x,
@@ -247,6 +249,7 @@ const VideoEl = ({ memory, onDeleteMemory, onPositionUpdate }) => {
     <div
       onMouseDown={onMouseDown}
       onTouchStart={onTouchStart}
+      onClick={e => e.stopPropagation()}
       style={{
         position: "absolute",
         left:   localPos.x,

@@ -168,6 +168,7 @@ function App() {
   const [loading,      setLoading]      = React.useState(true);
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [editorOpen,   setEditorOpen]   = React.useState(false);
+  const navRef = React.useRef(null);
 
   // Load memories on mount and subscribe to real-time inserts
   React.useEffect(() => {
@@ -269,20 +270,42 @@ function App() {
       </div>
 
       <div className="stage">
-        <Book leaves={leaves} currentIndex={currentIndex} setCurrentIndex={setCurrentIndex} />
+        <Book
+          leaves={leaves}
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+          navRef={navRef}
+        />
       </div>
 
       <MobileBook leaves={leaves} />
 
       <DesktopRecommendation />
 
-      <div className="hint" style={{ opacity: currentIndex === 0 ? 1 : 0.55 }}>
-        {currentIndex === 0
-          ? <>tap the book to open <span className="key">→</span></>
-          : state === "closed-back"
-            ? <>the end. <span className="key">←</span> to go back</>
-            : <><span className="key">←</span> <span className="key">→</span> to turn the pages</>
-        }
+      {/* ── Bottom navigation bar — rendered outside .stage so transforms don't affect it ── */}
+      <div className="page-nav" aria-label="Book navigation">
+        <button
+          className="page-nav-btn"
+          onClick={() => navRef.current?.flipBack()}
+          disabled={currentIndex === 0}
+          aria-label="Previous page"
+        >‹</button>
+
+        <div className="page-nav-center">
+          {currentIndex === 0
+            ? <span className="page-nav-hint">tap the book or use arrows to open</span>
+            : state === "closed-back"
+              ? <span className="page-nav-hint">the end</span>
+              : <span className="page-nav-count">{currentIndex} / {total - 1}</span>
+          }
+        </div>
+
+        <button
+          className="page-nav-btn"
+          onClick={() => navRef.current?.flipForward()}
+          disabled={currentIndex === total}
+          aria-label="Next page"
+        >›</button>
       </div>
 
       <button className="add-btn" onClick={() => setEditorOpen(true)}>

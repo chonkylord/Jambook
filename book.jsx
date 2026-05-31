@@ -4,7 +4,7 @@
 
 const FLIP_DURATION = 1000; // ms — keep in sync with CSS transition
 
-function Book({ leaves, currentIndex, setCurrentIndex }) {
+function Book({ leaves, currentIndex, setCurrentIndex, navRef }) {
   const [activeIndex, setActiveIndex] = React.useState(null);
   const [animating, setAnimating] = React.useState(false);
 
@@ -33,6 +33,11 @@ function Book({ leaves, currentIndex, setCurrentIndex }) {
       return c - 1;
     });
   }, [animating, setCurrentIndex]);
+
+  // Expose flip functions so app.jsx can render nav buttons outside the scaled stage
+  React.useEffect(() => {
+    if (navRef) navRef.current = { flipForward, flipBack, animating };
+  }, [flipForward, flipBack, animating, navRef]);
 
   // keyboard nav
   React.useEffect(() => {
@@ -112,19 +117,7 @@ function Book({ leaves, currentIndex, setCurrentIndex }) {
         })}
       </div>
 
-      {/* nav buttons sit outside the scaled stage */}
-      <button
-        className="nav-btn left"
-        onClick={flipBack}
-        disabled={currentIndex === 0 || animating}
-        aria-label="Previous page"
-      >‹</button>
-      <button
-        className="nav-btn right"
-        onClick={flipForward}
-        disabled={currentIndex === leaves.length || animating}
-        aria-label="Next page"
-      >›</button>
+      {/* nav buttons are rendered in app.jsx outside the scaled stage */}
     </>
   );
 }
